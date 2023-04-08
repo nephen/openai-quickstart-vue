@@ -1,34 +1,38 @@
 <script setup>
 import { ref } from 'vue';
-import axios from 'axios'
+import { SSE } from "/assets/sse.js";
 
-console.log(import.meta.env)
-const http = axios.create({
-  baseURL: 'https://api.openai.com/v1/chat',
-  headers: {
-    'Content-Type': 'application/json',
-    Authorization: `Bearer ${import.meta.env.VITE_OPEN_API_KEY}`,
-    'OpenAI-Organization': import.meta.env.VITE_ORG_ID,
-  }
-});
 const content = ref('');
 const BTN_TEXT = 'Submit 🚀'
 const res = ref('✅ The answer will be displayed here.')
 const btnText = ref(BTN_TEXT)
 const askAi = () => {
   btnText.value = 'Thinking...🤔'
-  http.post('/completions', {
-	  "model": "gpt-3.5-turbo",
-	  "messages": [{"role": "user", "content": content.value}],
-	  "temperature": 0.7
-	}).then(function (response) {
-    console.log(response);
-    res.value =  response.data.choices[0].message.content
-  }).catch(function (error) {
-    console.log(error);
-  }).finally(() => {
+  let url = `${import.meta.env.VITE_CHAT_URL}` + '/chat'
+  let body = { 'model': 'gpt-3.5-turbo', 'stream': true, 'messages': [{ 'role': 'user', 'content': content.value }] }
+  var source = new SSE(url, {
+    headers: { 'Content-Type': 'application/json', 'authorization': `${import.meta.env.VITE_CHAT_CODE}` },
+    payload: JSON.stringify(body)
+  });
+  let got = false
+  source.addEventListener('message', e => {
+    if (e.data === '[DONE]') {
+      btnText.value = BTN_TEXT
+    } else {
+      var payload = JSON.parse(e.data);
+      if (payload.choices[0].delta.content !== undefined && payload.choices[0].delta.content !== '') {
+        res.value += payload.choices[0].delta.content
+        if (!got) {
+          res.value = ''
+        }
+        got = true
+      }
+    }
+  });
+  source.addEventListener('close', e => {
     btnText.value = BTN_TEXT
-  })
+  });
+  source.stream();
 }
 </script>
 
@@ -49,33 +53,16 @@ const askAi = () => {
       </button>
     </div>
     <div class="card">
-      <pre>{{ res  }}</pre>
+      <pre>{{ res }}</pre>
     </div>
-    <!-- <button @click="askAi">
-      <div class="svg-wrapper-1">
-        <div class="svg-wrapper">
-          <svg height="24" width="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-            <path d="M0 0h24v24H0z" fill="none"></path>
-            <path d="M1.946 9.315c-.522-.174-.527-.455.01-.634l19.087-6.362c.529-.176.832.12.684.638l-5.454 19.086c-.15.529-.455.547-.679.045L12 14l6-8-8 6-8.054-2.685z" fill="currentColor"></path>
-          </svg>
-        </div>
-      </div>
-      <span>{{  btnText  }}</span>
-    </button> -->
   </div>
-  <!-- <button class="shadow__btn" @click="askAi">
-    {{  btnText  }}
-  </button> -->
-  <!-- <input placeholder="请问我" class="input-field" type="text" v-model="content"> -->
 </template>
 
 <style scoped>
 h1 {
   margin-bottom: 64px;
 }
-/* 
-.chat {
-} */
+
 .input {
   width: calc(100% - 20px);
   height: 32px;
@@ -96,6 +83,7 @@ h1 {
   25% {
     transform: translateX(5px);
   }
+
   50% {
     transform: translateX(-5px);
   }
@@ -137,6 +125,7 @@ button svg {
   transform-origin: center center;
   transition: transform 0.3s ease-in-out;
 }
+
 /* 
 button:hover .svg-wrapper {
   animation: fly-1 0.6s ease-in-out infinite alternate;
@@ -180,7 +169,8 @@ button:active {
   margin-top: 32px;
 }
 
-.card span, .card pre {
+.card span,
+.card pre {
   z-index: 1;
   color: white;
   font-size: 16px;
@@ -213,7 +203,8 @@ button:active {
   ;
   inset: 5px;
   border-radius: 16px;
-}  
+}
+
 /* .card:hover:before {
   background-image: linear-gradient(180deg, rgb(81, 255, 0), purple);
   animation: rotBGimg 3.5s linear infinite;
@@ -223,6 +214,7 @@ button:active {
   align-items: center;
   justify-content: end;
 }
+
 .btn {
   display: flex;
   justify-content: center;
@@ -236,7 +228,7 @@ button:active {
   transition: 0.5s;
   animation: gradient_301 5s ease infinite;
   border: double 4px transparent;
-  background-image: linear-gradient(#212121, #212121),  linear-gradient(137.48deg, #ffdb3b 10%,#FE53BB 45%, #8F51EA 67%, #0044ff 87%);
+  background-image: linear-gradient(#212121, #212121), linear-gradient(137.48deg, #ffdb3b 10%, #FE53BB 45%, #8F51EA 67%, #0044ff 87%);
   background-origin: border-box;
   background-clip: content-box, border-box;
 }
@@ -388,5 +380,4 @@ strong {
     transform: scale(0.75);
     box-shadow: 0 0 0 0 rgba(0, 0, 0, 0);
   }
-}
-</style>
+}</style>
